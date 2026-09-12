@@ -124,10 +124,19 @@ const container = document.getElementById("wheel-container");
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
-// Slight offset + tilt: "forced perspective" — mostly face-on, but enough
-// angle to read the wheel's rim thickness and catch some highlight motion.
-camera.position.set(0, 1.5, 14);
-camera.lookAt(0, 0, 0);
+const CAMERA_DISTANCE = 14;
+
+// Camera tilt is constrained to a single arc (around the X axis, at a fixed
+// distance) rather than a free orbit: 0° is dead face-on, positive angles
+// tilt the camera up so we look slightly down at the wheel. This is the
+// "forced perspective" knob — enough angle to read the rim thickness and
+// catch highlight motion without turning it into a true 3D orbit.
+function setCameraTilt(degrees) {
+  const rad = (degrees * Math.PI) / 180;
+  camera.position.set(0, CAMERA_DISTANCE * Math.sin(rad), CAMERA_DISTANCE * Math.cos(rad));
+  camera.lookAt(0, 0, 0);
+}
+setCameraTilt(6);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -315,15 +324,19 @@ rebuildWheelTexture();
 
 const POINTER_WORLD_ANGLE = Math.PI / 2; // "up" on screen, standard math angle
 
-let spinning = false;
-let spinStart = 0;
-let spinFrom = 0;
-let spinTo = 0;
-const SPIN_DURATION_MS = 5200;
+// Physics knobs, live-tunable from the debug panel. The spin is a genuine
+// angular-velocity simulation (constant linear drag), not a canned easing
+// curve — top speed sets how fast it launches, drag sets how hard it
+// decelerates, and how far it travels (and where it lands) falls out of
+// those two numbers instead of being pre-selected.
+const settings = {
+  topSpeed: 14, // rad/s
+  drag: 2.5, // rad/s^2
+};
 
-function easeOutQuint(t) {
-  return 1 - Math.pow(1 - t, 5);
-}
+let spinning = false;
+let angularVelocity = 0;
+let lastFrameTime = 0;
 
 function currentWinnerIndex() {
   const n = entries.length;
@@ -339,36 +352,21 @@ function spin() {
   spinning = true;
   spinBtn.disabled = true;
 
-  const n = entries.length;
-  const sliceAngle = (2 * Math.PI) / n;
-  const targetIndex = Math.floor(Math.random() * n);
-
-  // We want currentWinnerIndex() === targetIndex at the end, landing at a
-  // random point within that slice (not dead center, for realism).
-  const jitter = (Math.random() - 0.5) * sliceAngle * 0.7;
-  const targetLocalAtPointer = targetIndex * sliceAngle + sliceAngle / 2 + jitter;
-  const extraSpins = 6 + Math.floor(Math.random() * 4); // 6-9 full turns
-
-  // rotation.z = POINTER_WORLD_ANGLE - localAtPointer (mod 2π), plus full turns.
-  const baseTarget = POINTER_WORLD_ANGLE - targetLocalAtPointer;
-  const currentRot = wheelPivot.rotation.z;
-  // Find a target >= currentRot that matches baseTarget mod 2π, then add spins.
-  const twoPi = Math.PI * 2;
-  let delta = ((baseTarget - currentRot) % twoPi + twoPi) % twoPi;
-  spinFrom = currentRot;
-  spinTo = currentRot + delta + extraSpins * twoPi;
-  spinStart = performance.now();
-
+  // +/-10% launch jitter so identical settings don't always land the same
+  // number of slices away.
+  angularVelocity = settings.topSpeed * (0.9 + Math.random() * 0.2);
+  lastFrameTime = performance.now();
   requestAnimationFrame(stepSpin);
 }
 
 function stepSpin(now) {
-  const elapsed = now - spinStart;
-  const t = Math.min(elapsed / SPIN_DURATION_MS, 1);
-  const eased = easeOutQuint(t);
-  wheelPivot.rotation.z = spinFrom + (spinTo - spinFrom) * eased;
+  const dt = Math.min((now - lastFrameTime) / 1000, 0.05); // guard against tab-throttle spikes
+  lastFrameTime = now;
 
-  if (t < 1) {
+  angularVelocity = Math.max(0, angularVelocity - settings.drag * dt);
+  wheelPivot.rotation.z += angularVelocity * dt;
+
+  if (angularVelocity > 0.001) {
     requestAnimationFrame(stepSpin);
   } else {
     spinning = false;
@@ -473,6 +471,45 @@ function loop() {
   updateConfetti();
   renderer.render(scene, camera);
 }
+
+// ---------------------------------------------------------------------------
+// Debug controls
+// ---------------------------------------------------------------------------
+
+const DEFAULTS = { cameraTilt: 6, topSpeed: settings.topSpeed, drag: settings.drag };
+
+const dbgCameraTilt = document.getElementById("dbg-camera-tilt");
+const dbgTopSpeed = document.getElementById("dbg-top-speed");
+const dbgDrag = document.getElementById("dbg-drag");
+const outCameraTilt = document.getElementById("out-camera-tilt");
+const outTopSpeed = document.getElementById("out-top-speed");
+const outDrag = document.getElementById("out-drag");
+const dbgResetBtn = document.getElementById("dbg-reset");
+
+dbgCameraTilt.addEventListener("input", () => {
+  const deg = Number(dbgCameraTilt.value);
+  outCameraTilt.textContent = `${deg}°`;
+  setCameraTilt(deg);
+});
+
+dbgTopSpeed.addEventListener("input", () => {
+  settings.topSpeed = Number(dbgTopSpeed.value);
+  outTopSpeed.textContent = settings.topSpeed;
+});
+
+dbgDrag.addEventListener("input", () => {
+  settings.drag = Number(dbgDrag.value);
+  outDrag.textContent = settings.drag;
+});
+
+dbgResetBtn.addEventListener("click", () => {
+  dbgCameraTilt.value = DEFAULTS.cameraTilt;
+  dbgTopSpeed.value = DEFAULTS.topSpeed;
+  dbgDrag.value = DEFAULTS.drag;
+  dbgCameraTilt.dispatchEvent(new Event("input"));
+  dbgTopSpeed.dispatchEvent(new Event("input"));
+  dbgDrag.dispatchEvent(new Event("input"));
+});
 
 // ---------------------------------------------------------------------------
 // Boot

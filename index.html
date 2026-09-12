@@ -32,6 +32,25 @@
           <textarea id="bulk-text" rows="8" placeholder="Paste a list, one entry per line…"></textarea>
           <button id="bulk-apply">Apply</button>
         </details>
+
+        <details>
+          <summary>Debug controls</summary>
+          <div class="debug-controls">
+            <label class="debug-row">
+              <span>Camera tilt <output id="out-camera-tilt">6°</output></span>
+              <input type="range" id="dbg-camera-tilt" min="-45" max="45" step="1" value="6" />
+            </label>
+            <label class="debug-row">
+              <span>Top speed <output id="out-top-speed">14</output> rad/s</span>
+              <input type="range" id="dbg-top-speed" min="4" max="30" step="0.5" value="14" />
+            </label>
+            <label class="debug-row">
+              <span>Drag <output id="out-drag">2.5</output> rad/s²</span>
+              <input type="range" id="dbg-drag" min="1" max="6" step="0.1" value="2.5" />
+            </label>
+            <button id="dbg-reset" type="button">Reset to defaults</button>
+          </div>
+        </details>
       </section>
     </main>
   </div>

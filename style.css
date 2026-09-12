@@ -201,6 +201,45 @@ details summary {
   margin-bottom: 10px;
 }
 
+.debug-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.debug-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.debug-row output {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.debug-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+#dbg-reset {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: #26212f;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+#dbg-reset:hover {
+  background: #322d40;
+}
+
 #winner-overlay {
   position: fixed;
   inset: 0;
