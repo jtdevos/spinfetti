@@ -54,7 +54,7 @@
           </div>
         </details>
 
-        <details open>
+        <details>
           <summary>Background (experiment)</summary>
           <div class="debug-controls">
             <label class="debug-row">
@@ -75,6 +75,46 @@
             </label>
           </div>
         </details>
+
+        <details>
+          <summary>Screen filters (experiment)</summary>
+          <div class="debug-controls">
+            <div class="preset-row">
+              <button type="button" class="preset-btn" data-preset="none">None</button>
+              <button type="button" class="preset-btn" data-preset="crt">CRT</button>
+              <button type="button" class="preset-btn" data-preset="vhs">VHS</button>
+              <button type="button" class="preset-btn" data-preset="jpeg">JPEG</button>
+            </div>
+            <label class="debug-row">
+              <span>Scanlines <output id="out-flt-scanlines">0</output></span>
+              <input type="range" id="flt-scanlines" min="0" max="1" step="0.05" value="0" />
+            </label>
+            <label class="debug-row">
+              <span>Curvature <output id="out-flt-curvature">0</output></span>
+              <input type="range" id="flt-curvature" min="0" max="0.4" step="0.01" value="0" />
+            </label>
+            <label class="debug-row">
+              <span>Vignette <output id="out-flt-vignette">0</output></span>
+              <input type="range" id="flt-vignette" min="0" max="1" step="0.05" value="0" />
+            </label>
+            <label class="debug-row">
+              <span>Chromatic aberration <output id="out-flt-chroma">0</output></span>
+              <input type="range" id="flt-chroma" min="0" max="0.015" step="0.001" value="0" />
+            </label>
+            <label class="debug-row">
+              <span>Posterize levels <output id="out-flt-posterize">0 (off)</output></span>
+              <input type="range" id="flt-posterize" min="0" max="16" step="1" value="0" />
+            </label>
+            <label class="debug-row">
+              <span>Pixelation block <output id="out-flt-pixelate">0 (off)</output></span>
+              <input type="range" id="flt-pixelate" min="0" max="16" step="1" value="0" />
+            </label>
+            <label class="debug-row">
+              <span>Static noise <output id="out-flt-noise">0</output></span>
+              <input type="range" id="flt-noise" min="0" max="0.5" step="0.02" value="0" />
+            </label>
+          </div>
+        </details>
       </section>
     </main>
   </div>
@@ -90,7 +130,8 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
       }
     }
   </script>

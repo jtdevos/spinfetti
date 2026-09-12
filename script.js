@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 // ---------------------------------------------------------------------------
 // State + persistence
@@ -153,9 +157,131 @@ const rimLight = new THREE.PointLight(0xffb703, 1.2, 20);
 rimLight.position.set(-4, -2, 4);
 scene.add(rimLight);
 
+// ---------------------------------------------------------------------------
+// Screen filters: a post-processing pass over the wheel's own render,
+// mimicking old-video artifacts (CRT curvature/scanlines, chromatic
+// aberration, posterize/pixelation standing in for compression blockiness,
+// static noise). Every knob defaults to "off" (0) — the baseline render is
+// untouched until a debug control turns one on.
+// ---------------------------------------------------------------------------
+
+const filterUniforms = {
+  tDiffuse: { value: null },
+  uTime: { value: 0 },
+  uResolution: { value: new THREE.Vector2(1, 1) },
+  uScanlines: { value: 0 },
+  uCurvature: { value: 0 },
+  uVignette: { value: 0 },
+  uChroma: { value: 0 },
+  uPosterize: { value: 0 },
+  uPixelate: { value: 0 },
+  uNoise: { value: 0 },
+};
+
+const retroFilterShader = {
+  uniforms: filterUniforms,
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform vec2 uResolution;
+    uniform float uScanlines;
+    uniform float uCurvature;
+    uniform float uVignette;
+    uniform float uChroma;
+    uniform float uPosterize;
+    uniform float uPixelate;
+    uniform float uNoise;
+    varying vec2 vUv;
+
+    float rand(vec2 co) {
+      return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    vec2 barrel(vec2 uv, float amt) {
+      vec2 cc = uv - 0.5;
+      float dist2 = dot(cc, cc);
+      return uv + cc * dist2 * amt;
+    }
+
+    void main() {
+      vec2 uv = uCurvature > 0.0 ? barrel(vUv, uCurvature) : vUv;
+
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+      }
+
+      if (uPixelate > 1.0) {
+        vec2 blocks = uResolution / uPixelate;
+        uv = floor(uv * blocks) / blocks;
+      }
+
+      vec3 color;
+      float alpha = texture2D(tDiffuse, uv).a;
+      if (uChroma > 0.0) {
+        color.r = texture2D(tDiffuse, uv + vec2(uChroma, 0.0)).r;
+        color.g = texture2D(tDiffuse, uv).g;
+        color.b = texture2D(tDiffuse, uv - vec2(uChroma, 0.0)).b;
+      } else {
+        color = texture2D(tDiffuse, uv).rgb;
+      }
+
+      if (uPosterize > 1.0) {
+        color = floor(color * uPosterize + 0.5) / uPosterize;
+      }
+
+      if (uScanlines > 0.0) {
+        // Fixed line density (independent of actual pixel resolution/DPR) so
+        // this reads as clean bands instead of aliasing into static. Squared
+        // cosine sharpens the dark troughs while leaving bright bands at
+        // full brightness, for real scanline contrast rather than a wash.
+        const float LINES = 100.0;
+        float scan = 0.5 + 0.5 * cos(uv.y * LINES * 6.28318 - uTime * 6.0);
+        scan = scan * scan;
+        color *= 1.0 - uScanlines * (1.0 - scan);
+      }
+
+      if (uNoise > 0.0) {
+        float n = rand(uv * uResolution.xy + fract(uTime) * 120.0);
+        color += (n - 0.5) * uNoise;
+      }
+
+      if (uVignette > 0.0) {
+        float d = distance(uv, vec2(0.5));
+        float vig = smoothstep(0.85, 0.25, d);
+        color *= mix(1.0, vig, uVignette);
+      }
+
+      gl_FragColor = vec4(color, alpha);
+    }
+  `,
+};
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+// Built as a real THREE.ShaderMaterial (rather than handing ShaderPass a
+// plain {uniforms, vertexShader, fragmentShader} object) specifically so it
+// uses filterUniforms *by reference* — ShaderPass clones plain shader defs
+// internally, which would silently disconnect the debug sliders from what
+// the shader actually reads.
+const filterMaterial = new THREE.ShaderMaterial(retroFilterShader);
+const filterPass = new ShaderPass(filterMaterial);
+composer.addPass(filterPass);
+composer.addPass(new OutputPass());
+
 function resizeRenderer() {
   const size = container.clientWidth;
+  const pixelRatio = renderer.getPixelRatio();
   renderer.setSize(size, size);
+  composer.setSize(size, size);
+  filterUniforms.uResolution.value.set(size * pixelRatio, size * pixelRatio);
   camera.aspect = 1;
   camera.updateProjectionMatrix();
 }
@@ -466,10 +592,11 @@ function updateConfetti() {
   }
 }
 
-function loop() {
+function loop(now) {
   requestAnimationFrame(loop);
   updateConfetti();
-  renderer.render(scene, camera);
+  filterUniforms.uTime.value = (now ?? performance.now()) / 1000;
+  composer.render();
 }
 
 // ---------------------------------------------------------------------------
@@ -509,6 +636,56 @@ dbgResetBtn.addEventListener("click", () => {
   dbgCameraTilt.dispatchEvent(new Event("input"));
   dbgTopSpeed.dispatchEvent(new Event("input"));
   dbgDrag.dispatchEvent(new Event("input"));
+});
+
+// ---------------------------------------------------------------------------
+// Screen filter controls
+// ---------------------------------------------------------------------------
+
+const FILTER_SLIDERS = [
+  { id: "flt-scanlines", uniform: "uScanlines" },
+  { id: "flt-curvature", uniform: "uCurvature" },
+  { id: "flt-vignette", uniform: "uVignette" },
+  { id: "flt-chroma", uniform: "uChroma" },
+  { id: "flt-posterize", uniform: "uPosterize", offLabel: true },
+  { id: "flt-pixelate", uniform: "uPixelate", offLabel: true },
+  { id: "flt-noise", uniform: "uNoise" },
+];
+
+const filterEls = {};
+for (const { id, uniform, offLabel } of FILTER_SLIDERS) {
+  const input = document.getElementById(id);
+  const output = document.getElementById(`out-${id}`);
+  filterEls[id] = input;
+  input.addEventListener("input", () => {
+    const value = Number(input.value);
+    filterUniforms[uniform].value = value;
+    output.textContent = offLabel && value === 0 ? "0 (off)" : String(value);
+    clearActivePreset();
+  });
+}
+
+const presetButtons = document.querySelectorAll(".preset-btn");
+const FILTER_PRESETS = {
+  none: { "flt-scanlines": 0, "flt-curvature": 0, "flt-vignette": 0, "flt-chroma": 0, "flt-posterize": 0, "flt-pixelate": 0, "flt-noise": 0 },
+  crt: { "flt-scanlines": 0.4, "flt-curvature": 0.15, "flt-vignette": 0.5, "flt-chroma": 0.003, "flt-posterize": 0, "flt-pixelate": 0, "flt-noise": 0.04 },
+  vhs: { "flt-scanlines": 0.25, "flt-curvature": 0.05, "flt-vignette": 0.3, "flt-chroma": 0.008, "flt-posterize": 0, "flt-pixelate": 0, "flt-noise": 0.14 },
+  jpeg: { "flt-scanlines": 0, "flt-curvature": 0, "flt-vignette": 0.1, "flt-chroma": 0.002, "flt-posterize": 6, "flt-pixelate": 6, "flt-noise": 0.02 },
+};
+
+function clearActivePreset() {
+  presetButtons.forEach((btn) => btn.classList.remove("active"));
+}
+
+presetButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const preset = FILTER_PRESETS[btn.dataset.preset];
+    for (const [id, value] of Object.entries(preset)) {
+      filterEls[id].value = value;
+      filterEls[id].dispatchEvent(new Event("input"));
+    }
+    presetButtons.forEach((b) => b.classList.toggle("active", b === btn));
+  });
 });
 
 // ---------------------------------------------------------------------------
