@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wheel of Fortune</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🎡 Spin the Wheel</h1>
+    </header>
+
+    <main>
+      <section class="wheel-section">
+        <div id="wheel-container"></div>
+        <button id="spin-btn">SPIN</button>
+      </section>
+
+      <section class="panel">
+        <h2>Entries</h2>
+        <ul id="entry-list"></ul>
+
+        <form id="add-form">
+          <input id="add-input" type="text" placeholder="Add an entry…" autocomplete="off" />
+          <button type="submit">Add</button>
+        </form>
+
+        <details>
+          <summary>Bulk edit (one per line)</summary>
+          <textarea id="bulk-text" rows="8" placeholder="Paste a list, one entry per line…"></textarea>
+          <button id="bulk-apply">Apply</button>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <div id="winner-overlay" class="hidden">
+    <div class="winner-card">
+      <div class="winner-label">Winner!</div>
+      <div id="winner-name" class="winner-name"></div>
+      <button id="winner-close">Close</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

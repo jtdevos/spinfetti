@@ -1,0 +1,258 @@
+:root {
+  color-scheme: dark;
+  --bg: #14121a;
+  --panel: #1e1b26;
+  --panel-border: #322d40;
+  --text: #f1eef7;
+  --muted: #a49bb8;
+  --accent: #ffb703;
+  --accent-hover: #ffc93c;
+  --danger: #ff5d73;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at 50% 0%, #241f30 0%, var(--bg) 60%);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+header h1 {
+  text-align: center;
+  font-size: 2rem;
+  margin: 0 0 24px;
+  letter-spacing: 0.02em;
+}
+
+main {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.wheel-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+#wheel-container {
+  width: 500px;
+  height: 500px;
+  max-width: 90vw;
+  max-height: 90vw;
+}
+
+#wheel-container canvas {
+  display: block;
+}
+
+#spin-btn {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 14px 48px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  color: #241a00;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(255, 183, 3, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+#spin-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(255, 183, 3, 0.45);
+}
+
+#spin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 20px 22px;
+  width: 340px;
+  max-width: 90vw;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#entry-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#entry-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #26212f;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+#entry-list .swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+#entry-list .entry-text {
+  flex: 1;
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+#entry-list button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 4px;
+}
+
+#entry-list button:hover {
+  color: var(--danger);
+}
+
+#add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+#add-input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: #14121a;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+#add-form button,
+#bulk-apply {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #3a3448;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+#add-form button:hover,
+#bulk-apply:hover {
+  background: #4a4260;
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+#bulk-text {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: #14121a;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 10px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+#winner-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 14, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+#winner-overlay.hidden {
+  display: none;
+}
+
+.winner-card {
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 20px;
+  padding: 40px 60px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: pop 0.35s ease;
+}
+
+@keyframes pop {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.winner-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.winner-name {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 20px;
+  word-break: break-word;
+}
+
+.winner-card button {
+  padding: 10px 28px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #241a00;
+  font-weight: 600;
+  cursor: pointer;
+}
