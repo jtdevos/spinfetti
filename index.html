@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <canvas id="bg-canvas"></canvas>
+
   <div class="app">
     <header>
       <h1>🎡 Spin the Wheel</h1>
@@ -51,6 +53,28 @@
             <button id="dbg-reset" type="button">Reset to defaults</button>
           </div>
         </details>
+
+        <details open>
+          <summary>Background (experiment)</summary>
+          <div class="debug-controls">
+            <label class="debug-row">
+              <span>Style</span>
+              <select id="bg-mode">
+                <option value="0">Plasma</option>
+                <option value="1">Aurora</option>
+                <option value="2">Radial pulse</option>
+              </select>
+            </label>
+            <label class="debug-row">
+              <span>Speed <output id="out-bg-speed">0.6</output></span>
+              <input type="range" id="bg-speed" min="0" max="2" step="0.05" value="0.6" />
+            </label>
+            <label class="debug-row">
+              <span>Brightness <output id="out-bg-intensity">0.55</output></span>
+              <input type="range" id="bg-intensity" min="0" max="1.5" step="0.05" value="0.55" />
+            </label>
+          </div>
+        </details>
       </section>
     </main>
   </div>
@@ -71,5 +95,6 @@
     }
   </script>
   <script type="module" src="script.js"></script>
+  <script type="module" src="background.js"></script>
 </body>
 </html>
