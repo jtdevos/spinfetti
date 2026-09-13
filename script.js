@@ -299,7 +299,9 @@ window.addEventListener("resize", resizeRenderer);
 // ---------------------------------------------------------------------------
 
 const WHEEL_RADIUS = 3;
-const WHEEL_THICKNESS = 0.35;
+const WHEEL_THICKNESS = 0.6;
+const RIM_BEVEL = 0.14;
+const FACE_RADIUS = WHEEL_RADIUS - RIM_BEVEL;
 const TEXTURE_SIZE = 1024;
 
 const wheelPivot = new THREE.Group();
@@ -318,7 +320,7 @@ const frontMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.05,
 });
 const frontDisc = new THREE.Mesh(
-  new THREE.CircleGeometry(WHEEL_RADIUS, 96),
+  new THREE.CircleGeometry(FACE_RADIUS, 96),
   frontMaterial
 );
 frontDisc.position.z = WHEEL_THICKNESS / 2;
@@ -329,7 +331,7 @@ const backMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.8,
   side: THREE.DoubleSide,
 });
-const backDisc = new THREE.Mesh(new THREE.CircleGeometry(WHEEL_RADIUS, 96), backMaterial);
+const backDisc = new THREE.Mesh(new THREE.CircleGeometry(FACE_RADIUS, 96), backMaterial);
 backDisc.position.z = -WHEEL_THICKNESS / 2;
 wheelPivot.add(backDisc);
 
@@ -338,10 +340,31 @@ const rimMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.3,
   metalness: 0.8,
 });
-const rim = new THREE.Mesh(
-  new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, WHEEL_THICKNESS, 96, 1, true),
-  rimMaterial
-);
+
+// Rounded rim: a revolved (Lathe) profile instead of a flat-walled cylinder
+// — a quarter-circle bevel from each flat face down to a short straight
+// wall, so the disc reads as a real beveled object instead of a flat
+// cutout. Revolved around Y by LatheGeometry, then rotated onto our wheel's
+// Z spin axis the same way the old cylinder rim was.
+const halfThickness = WHEEL_THICKNESS / 2;
+const bevelCenterZ = halfThickness - RIM_BEVEL;
+const RIM_ARC_SEGMENTS = 12;
+const rimProfile = [];
+for (let i = 0; i <= RIM_ARC_SEGMENTS; i++) {
+  const phi = (Math.PI / 2) * (1 - i / RIM_ARC_SEGMENTS); // 90deg -> 0deg
+  rimProfile.push(new THREE.Vector2(
+    FACE_RADIUS + RIM_BEVEL * Math.cos(phi),
+    bevelCenterZ + RIM_BEVEL * Math.sin(phi)
+  ));
+}
+for (let i = 0; i <= RIM_ARC_SEGMENTS; i++) {
+  const phi = -(Math.PI / 2) * (i / RIM_ARC_SEGMENTS); // 0deg -> -90deg
+  rimProfile.push(new THREE.Vector2(
+    FACE_RADIUS + RIM_BEVEL * Math.cos(phi),
+    -bevelCenterZ + RIM_BEVEL * Math.sin(phi)
+  ));
+}
+const rim = new THREE.Mesh(new THREE.LatheGeometry(rimProfile, 96), rimMaterial);
 rim.rotation.x = Math.PI / 2;
 wheelPivot.add(rim);
 
