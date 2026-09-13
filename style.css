@@ -34,9 +34,7 @@ body {
 .app {
   position: relative;
   z-index: 1;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px 20px 60px;
+  padding: 24px 32px 60px;
 }
 
 #celebration-canvas {
@@ -63,10 +61,11 @@ main {
   gap: 32px;
   align-items: flex-start;
   flex-wrap: wrap;
-  justify-content: center;
 }
 
 .wheel-section {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -74,8 +73,8 @@ main {
 }
 
 #wheel-container {
-  width: 500px;
-  height: 500px;
+  width: 640px;
+  height: 640px;
   max-width: 90vw;
   max-height: 90vw;
 }
@@ -115,6 +114,7 @@ main {
   border-radius: 16px;
   padding: 20px 22px;
   width: 340px;
+  flex-shrink: 0;
   max-width: 90vw;
 }
 
