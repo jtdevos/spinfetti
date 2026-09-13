@@ -8,7 +8,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 // State + persistence
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "wheel-of-fortune-entries";
+const STORAGE_KEY = "spinfetti-entries";
 
 const DEFAULT_ENTRIES = [
   "Reese's Cups",
