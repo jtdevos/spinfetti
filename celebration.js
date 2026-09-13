@@ -119,10 +119,9 @@ let confettiCursor = 0;
 let starCursor = 0;
 const recentFlashes = []; // start times (ms) of flashes still fading, for overlapping bursts
 
-// Converts a screen-space pixel coordinate (e.g. the wheel-container's
-// on-page center) into this camera's world space at a given world Z, so a
-// burst can start exactly where the wheel visually sits regardless of page
-// layout or window size.
+// Converts a screen-space pixel coordinate into this camera's world space
+// at a given world Z, so a burst spawned at an arbitrary point on screen
+// lands in the right spot regardless of window size.
 function screenToWorld(clientX, clientY, targetZ) {
   const ndcX = (clientX / window.innerWidth) * 2 - 1;
   const ndcY = -(clientY / window.innerHeight) * 2 + 1;
@@ -135,15 +134,16 @@ function screenToWorld(clientX, clientY, targetZ) {
 function configureSlot(slot, origin, startTime) {
   const angle = Math.random() * Math.PI * 2;
   const outward = 2.5 + Math.random() * 6;
-  const towardCamera = Math.random() < 0.8; // most fly at the viewer, some drift away/sideways
+  // Camera-ward bias without a hard coin-flip: taking the max of two uniform
+  // samples skews the distribution toward 1 (mean ~0.67 instead of 0.5), so
+  // most pieces still lean toward the viewer but every value in between is
+  // possible — some head straight at the camera, others drift past or away.
+  const cameraBias = Math.max(Math.random(), Math.random());
+  const zVelocity = -2 + cameraBias * 9; // roughly -2 .. 7, skewed positive
 
   slot.origin.copy(origin);
   slot.startTime = startTime;
-  slot.velocity.set(
-    Math.cos(angle) * outward,
-    2 + Math.random() * 5,
-    towardCamera ? 2 + Math.random() * 6 : (Math.random() - 0.5) * 3
-  );
+  slot.velocity.set(Math.cos(angle) * outward, 2 + Math.random() * 5, zVelocity);
   slot.angVel.set((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
   slot.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
   slot.baseScale = 0.7 + Math.random() * 0.7;
@@ -153,17 +153,14 @@ function configureSlot(slot, origin, startTime) {
   slot.mesh.setColorAt(slot.index, color);
 }
 
-// One explosion: a batch of confetti + stars from a single (slightly
-// jittered) origin near the wheel. Claims the next round-robin slots from
+// One explosion: a batch of confetti + stars from a random point anywhere
+// on screen (not tied to the wheel's position) so successive bursts don't
+// all cluster in the same corner. Claims the next round-robin slots from
 // the shared pool rather than allocating anything, so any number of bursts
 // can be spawned over time.
 function spawnBurst() {
-  const wheelContainer = document.getElementById("wheel-container");
-  const rect = wheelContainer?.getBoundingClientRect();
-  const jitterX = (Math.random() - 0.5) * 220;
-  const jitterY = (Math.random() - 0.5) * 160;
-  const cx = rect ? rect.left + rect.width / 2 + jitterX : window.innerWidth / 2;
-  const cy = rect ? rect.top + rect.height / 2 + jitterY : window.innerHeight / 2;
+  const cx = Math.random() * window.innerWidth;
+  const cy = Math.random() * window.innerHeight;
   const origin = screenToWorld(cx, cy, 0);
   const startTime = performance.now();
 
