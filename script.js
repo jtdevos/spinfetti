@@ -487,6 +487,7 @@ const settings = {
 let spinning = false;
 let angularVelocity = 0;
 let lastFrameTime = 0;
+let lastTickSlice = null;
 
 function currentWinnerIndex() {
   const n = entries.length;
@@ -506,6 +507,7 @@ function spin() {
   // number of slices away.
   angularVelocity = settings.topSpeed * (0.9 + Math.random() * 0.2);
   lastFrameTime = performance.now();
+  lastTickSlice = currentWinnerIndex();
   requestAnimationFrame(stepSpin);
 }
 
@@ -515,6 +517,14 @@ function stepSpin(now) {
 
   angularVelocity = Math.max(0, angularVelocity - settings.drag * dt);
   wheelPivot.rotation.z += angularVelocity * dt;
+
+  // Ticking sound cue: fire once per slice boundary the pointer crosses,
+  // exactly like a real prize wheel's clicker flapper.
+  const slice = currentWinnerIndex();
+  if (slice !== lastTickSlice) {
+    lastTickSlice = slice;
+    window.dispatchEvent(new CustomEvent("wheel:tick"));
+  }
 
   if (angularVelocity > 0.001) {
     requestAnimationFrame(stepSpin);

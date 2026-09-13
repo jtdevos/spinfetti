@@ -176,6 +176,7 @@ function spawnBurst() {
   starMesh.instanceColor.needsUpdate = true;
 
   recentFlashes.push(startTime);
+  window.dispatchEvent(new CustomEvent("celebration:burst"));
 }
 
 function update() {
