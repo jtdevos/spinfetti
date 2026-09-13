@@ -44,7 +44,10 @@ body {
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 5;
+  /* Above #winner-overlay (z-index: 10) so its backdrop-filter blur — meant
+     for the page behind the modal — never touches the confetti/stars.
+     Stays pointer-events: none so it never blocks the Close button. */
+  z-index: 15;
   pointer-events: none;
 }
 
