@@ -530,160 +530,19 @@ function announceWinner() {
   if (!winner) return;
   winnerNameEl.textContent = winner.text;
   winnerOverlay.classList.remove("hidden");
-  triggerCelebration();
+  // The confetti/star burst lives in its own full-viewport overlay
+  // (celebration.js) with its own camera, so particles can fly across the
+  // whole page instead of being clipped to this wheel's small canvas. We
+  // signal it via an event rather than importing it directly, matching the
+  // decoupled pattern background.js already uses.
+  window.dispatchEvent(new CustomEvent("wheel:winner", { detail: { winner: winner.text } }));
 }
 
 spinBtn.addEventListener("click", spin);
 spinBtn.disabled = entries.length < 2;
 
-// ---------------------------------------------------------------------------
-// Celebration burst: tumbling 3D confetti chips + stars flying outward and
-// toward the camera, plus a quick light flash. Built as InstancedMesh (not
-// THREE.Points) specifically so each piece can tumble in 3D — flat point
-// sprites can't rotate individually.
-// ---------------------------------------------------------------------------
-
-const CONFETTI_COUNT = 90;
-const STAR_COUNT = 26;
-const CELEBRATION_LIFETIME = 2.0; // seconds
-const CELEBRATION_ORIGIN = new THREE.Vector3(0, WHEEL_RADIUS * 0.1, WHEEL_THICKNESS / 2 + 0.15);
-const GRAVITY = -3.2;
-
-function createStarGeometry() {
-  const shape = new THREE.Shape();
-  const points = 5;
-  const outerR = 0.13;
-  const innerR = 0.055;
-  for (let i = 0; i < points * 2; i++) {
-    const r = i % 2 === 0 ? outerR : innerR;
-    const a = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-    if (i === 0) shape.moveTo(x, y);
-    else shape.lineTo(x, y);
-  }
-  shape.closePath();
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.035, bevelEnabled: false });
-  geometry.center();
-  return geometry;
-}
-
-const confettiGeometry = new THREE.BoxGeometry(0.16, 0.1, 0.015);
-const confettiMaterial = new THREE.MeshStandardMaterial({
-  // Per-instance color comes from InstancedMesh.setColorAt (an instance
-  // attribute), not per-vertex geometry colors — these geometries have no
-  // `color` vertex attribute, so `vertexColors: true` would make the
-  // renderer sample a nonexistent attribute (WebGL defaults it to black),
-  // stomping the instance color to solid black. Leave it false/unset.
-  roughness: 0.5,
-  metalness: 0.1,
-  transparent: true,
-  side: THREE.DoubleSide,
-});
-const confettiMesh = new THREE.InstancedMesh(confettiGeometry, confettiMaterial, CONFETTI_COUNT);
-confettiMesh.visible = false;
-scene.add(confettiMesh);
-
-const starGeometry = createStarGeometry();
-const starMaterial = new THREE.MeshStandardMaterial({
-  roughness: 0.25,
-  metalness: 0.7,
-  transparent: true,
-  side: THREE.DoubleSide,
-});
-const starMesh = new THREE.InstancedMesh(starGeometry, starMaterial, STAR_COUNT);
-starMesh.visible = false;
-scene.add(starMesh);
-
-const flashLight = new THREE.PointLight(0xfff2c8, 0, 16);
-flashLight.position.set(0, 0.5, 4);
-scene.add(flashLight);
-
-const celebrationDummy = new THREE.Object3D();
-let celebrationParticles = [];
-let celebrationActive = false;
-let celebrationStartTime = 0;
-
-function makeParticle(mesh, index) {
-  const angle = Math.random() * Math.PI * 2;
-  const outward = 1.4 + Math.random() * 3.2;
-  const towardCamera = Math.random() < 0.8; // most fly at the viewer, some drift away/sideways
-  const color = new THREE.Color();
-  color.setHSL(Math.random(), 0.75, 0.6);
-  mesh.setColorAt(index, color);
-
-  return {
-    mesh,
-    index,
-    velocity: new THREE.Vector3(
-      Math.cos(angle) * outward,
-      1.2 + Math.random() * 3,
-      towardCamera ? 1.5 + Math.random() * 4.5 : (Math.random() - 0.5) * 2
-    ),
-    angVel: new THREE.Vector3(
-      (Math.random() - 0.5) * 12,
-      (Math.random() - 0.5) * 12,
-      (Math.random() - 0.5) * 12
-    ),
-    rotation: new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
-    scale: 0.7 + Math.random() * 0.7,
-  };
-}
-
-function triggerCelebration() {
-  celebrationParticles = [];
-  for (let i = 0; i < CONFETTI_COUNT; i++) celebrationParticles.push(makeParticle(confettiMesh, i));
-  for (let i = 0; i < STAR_COUNT; i++) celebrationParticles.push(makeParticle(starMesh, i));
-
-  confettiMesh.instanceColor.needsUpdate = true;
-  starMesh.instanceColor.needsUpdate = true;
-  confettiMaterial.opacity = 1;
-  starMaterial.opacity = 1;
-  confettiMesh.visible = true;
-  starMesh.visible = true;
-  flashLight.intensity = 6;
-
-  celebrationActive = true;
-  celebrationStartTime = performance.now();
-}
-
-function updateCelebration() {
-  if (!celebrationActive) return;
-  const elapsed = (performance.now() - celebrationStartTime) / 1000;
-
-  for (const p of celebrationParticles) {
-    celebrationDummy.position.set(
-      CELEBRATION_ORIGIN.x + p.velocity.x * elapsed,
-      CELEBRATION_ORIGIN.y + p.velocity.y * elapsed + 0.5 * GRAVITY * elapsed * elapsed,
-      CELEBRATION_ORIGIN.z + p.velocity.z * elapsed
-    );
-    celebrationDummy.rotation.set(
-      p.rotation.x + p.angVel.x * elapsed,
-      p.rotation.y + p.angVel.y * elapsed,
-      p.rotation.z + p.angVel.z * elapsed
-    );
-    celebrationDummy.scale.setScalar(p.scale);
-    celebrationDummy.updateMatrix();
-    p.mesh.setMatrixAt(p.index, celebrationDummy.matrix);
-  }
-  confettiMesh.instanceMatrix.needsUpdate = true;
-  starMesh.instanceMatrix.needsUpdate = true;
-
-  const fade = Math.max(0, 1 - elapsed / CELEBRATION_LIFETIME);
-  confettiMaterial.opacity = fade;
-  starMaterial.opacity = fade;
-  flashLight.intensity = Math.max(0, 6 * (1 - elapsed / 0.35));
-
-  if (elapsed > CELEBRATION_LIFETIME) {
-    celebrationActive = false;
-    confettiMesh.visible = false;
-    starMesh.visible = false;
-  }
-}
-
 function loop(now) {
   requestAnimationFrame(loop);
-  updateCelebration();
   filterUniforms.uTime.value = (now ?? performance.now()) / 1000;
   composer.render();
 }
