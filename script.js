@@ -115,6 +115,7 @@ bulkApplyBtn.addEventListener("click", () => {
 
 winnerCloseBtn.addEventListener("click", () => {
   winnerOverlay.classList.add("hidden");
+  window.dispatchEvent(new CustomEvent("wheel:winner-closed"));
 });
 
 renderEntryList();

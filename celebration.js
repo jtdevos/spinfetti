@@ -4,9 +4,10 @@ import * as THREE from "three";
 // the wheel's own scene/camera (script.js) — that scene is only as big as
 // the 500x500 wheel canvas, so particles rendered there can never travel
 // past its edges no matter how fast we send them. This module owns its own
-// full-window canvas, camera, and lights, and listens for a "wheel:winner"
-// event rather than being imported directly, matching the pattern
-// background.js uses to stay independent of the wheel code.
+// full-window canvas, camera, and lights, and listens for "wheel:winner" /
+// "wheel:winner-closed" events rather than being imported directly,
+// matching the pattern background.js uses to stay independent of the
+// wheel code.
 
 const canvas = document.getElementById("celebration-canvas");
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -59,10 +60,19 @@ function createStarGeometry() {
   return geometry;
 }
 
-const CONFETTI_COUNT = 160;
-const STAR_COUNT = 40;
-const CELEBRATION_LIFETIME = 2.2; // seconds
+// Multiple bursts can be alive at once (a staggered opening flurry, plus a
+// steady drip while the winner card is open), each with its own origin and
+// start time. Rather than one global animation, every particle carries its
+// own — a fixed-size pool that spawnBurst() claims slots from round-robin,
+// so bursts can overlap freely without needing per-burst mesh objects.
+const CONFETTI_PER_BURST = 45;
+const STAR_PER_BURST = 12;
+const BURST_POOL_HEADROOM = 4; // how many concurrent bursts the pool comfortably covers
+const CONFETTI_COUNT = CONFETTI_PER_BURST * BURST_POOL_HEADROOM;
+const STAR_COUNT = STAR_PER_BURST * BURST_POOL_HEADROOM;
+const PARTICLE_LIFETIME = 2.2; // seconds
 const GRAVITY = -5;
+const FLASH_DURATION = 350; // ms
 
 const confettiGeometry = new THREE.BoxGeometry(0.26, 0.16, 0.02);
 const confettiMaterial = new THREE.MeshStandardMaterial({
@@ -73,32 +83,44 @@ const confettiMaterial = new THREE.MeshStandardMaterial({
   // unset; instance colors work without it.
   roughness: 0.5,
   metalness: 0.1,
-  transparent: true,
   side: THREE.DoubleSide,
 });
 const confettiMesh = new THREE.InstancedMesh(confettiGeometry, confettiMaterial, CONFETTI_COUNT);
-confettiMesh.visible = false;
 scene.add(confettiMesh);
 
 const starGeometry = createStarGeometry();
 const starMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.25,
   metalness: 0.7,
-  transparent: true,
   side: THREE.DoubleSide,
 });
 const starMesh = new THREE.InstancedMesh(starGeometry, starMaterial, STAR_COUNT);
-starMesh.visible = false;
 scene.add(starMesh);
 
 const dummy = new THREE.Object3D();
-let particles = [];
-let active = false;
-let startTime = 0;
-const origin = new THREE.Vector3();
+
+function makeSlot(mesh, index) {
+  return {
+    mesh,
+    index,
+    origin: new THREE.Vector3(),
+    startTime: -Infinity, // "expired" sentinel so unused slots render hidden (scale 0)
+    velocity: new THREE.Vector3(),
+    angVel: new THREE.Vector3(),
+    rotation: new THREE.Euler(),
+    baseScale: 1,
+  };
+}
+
+const confettiSlots = Array.from({ length: CONFETTI_COUNT }, (_, i) => makeSlot(confettiMesh, i));
+const starSlots = Array.from({ length: STAR_COUNT }, (_, i) => makeSlot(starMesh, i));
+const allSlots = [...confettiSlots, ...starSlots];
+let confettiCursor = 0;
+let starCursor = 0;
+const recentFlashes = []; // start times (ms) of flashes still fading, for overlapping bursts
 
 // Converts a screen-space pixel coordinate (e.g. the wheel-container's
-// on-page center) into this camera's world space at a given world Z, so the
+// on-page center) into this camera's world space at a given world Z, so a
 // burst can start exactly where the wheel visually sits regardless of page
 // layout or window size.
 function screenToWorld(clientX, clientY, targetZ) {
@@ -110,85 +132,99 @@ function screenToWorld(clientX, clientY, targetZ) {
   return camera.position.clone().addScaledVector(direction, distance);
 }
 
-function makeParticle(mesh, index) {
+function configureSlot(slot, origin, startTime) {
   const angle = Math.random() * Math.PI * 2;
   const outward = 2.5 + Math.random() * 6;
   const towardCamera = Math.random() < 0.8; // most fly at the viewer, some drift away/sideways
+
+  slot.origin.copy(origin);
+  slot.startTime = startTime;
+  slot.velocity.set(
+    Math.cos(angle) * outward,
+    2 + Math.random() * 5,
+    towardCamera ? 2 + Math.random() * 6 : (Math.random() - 0.5) * 3
+  );
+  slot.angVel.set((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
+  slot.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+  slot.baseScale = 0.7 + Math.random() * 0.7;
+
   const color = new THREE.Color();
   color.setHSL(Math.random(), 0.75, 0.6);
-  mesh.setColorAt(index, color);
-
-  return {
-    mesh,
-    index,
-    velocity: new THREE.Vector3(
-      Math.cos(angle) * outward,
-      2 + Math.random() * 5,
-      towardCamera ? 2 + Math.random() * 6 : (Math.random() - 0.5) * 3
-    ),
-    angVel: new THREE.Vector3(
-      (Math.random() - 0.5) * 12,
-      (Math.random() - 0.5) * 12,
-      (Math.random() - 0.5) * 12
-    ),
-    rotation: new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
-    scale: 0.7 + Math.random() * 0.7,
-  };
+  slot.mesh.setColorAt(slot.index, color);
 }
 
-function trigger() {
+// One explosion: a batch of confetti + stars from a single (slightly
+// jittered) origin near the wheel. Claims the next round-robin slots from
+// the shared pool rather than allocating anything, so any number of bursts
+// can be spawned over time.
+function spawnBurst() {
   const wheelContainer = document.getElementById("wheel-container");
   const rect = wheelContainer?.getBoundingClientRect();
-  origin.copy(rect ? screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2, 0) : new THREE.Vector3(0, 0, 0));
+  const jitterX = (Math.random() - 0.5) * 220;
+  const jitterY = (Math.random() - 0.5) * 160;
+  const cx = rect ? rect.left + rect.width / 2 + jitterX : window.innerWidth / 2;
+  const cy = rect ? rect.top + rect.height / 2 + jitterY : window.innerHeight / 2;
+  const origin = screenToWorld(cx, cy, 0);
+  const startTime = performance.now();
 
-  particles = [];
-  for (let i = 0; i < CONFETTI_COUNT; i++) particles.push(makeParticle(confettiMesh, i));
-  for (let i = 0; i < STAR_COUNT; i++) particles.push(makeParticle(starMesh, i));
-
+  for (let i = 0; i < CONFETTI_PER_BURST; i++) {
+    configureSlot(confettiSlots[confettiCursor], origin, startTime);
+    confettiCursor = (confettiCursor + 1) % CONFETTI_COUNT;
+  }
+  for (let i = 0; i < STAR_PER_BURST; i++) {
+    configureSlot(starSlots[starCursor], origin, startTime);
+    starCursor = (starCursor + 1) % STAR_COUNT;
+  }
   confettiMesh.instanceColor.needsUpdate = true;
   starMesh.instanceColor.needsUpdate = true;
-  confettiMaterial.opacity = 1;
-  starMaterial.opacity = 1;
-  confettiMesh.visible = true;
-  starMesh.visible = true;
-  flashLight.intensity = 8;
 
-  active = true;
-  startTime = performance.now();
+  recentFlashes.push(startTime);
 }
 
 function update() {
-  if (!active) return;
-  const elapsed = (performance.now() - startTime) / 1000;
+  const now = performance.now();
 
-  for (const p of particles) {
-    dummy.position.set(
-      origin.x + p.velocity.x * elapsed,
-      origin.y + p.velocity.y * elapsed + 0.5 * GRAVITY * elapsed * elapsed,
-      origin.z + p.velocity.z * elapsed
-    );
-    dummy.rotation.set(
-      p.rotation.x + p.angVel.x * elapsed,
-      p.rotation.y + p.angVel.y * elapsed,
-      p.rotation.z + p.angVel.z * elapsed
-    );
-    dummy.scale.setScalar(p.scale);
+  for (const slot of allSlots) {
+    const elapsed = (now - slot.startTime) / 1000;
+    if (elapsed < 0 || elapsed > PARTICLE_LIFETIME) {
+      dummy.position.set(0, 0, 0);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(0);
+    } else {
+      const fade = 1 - elapsed / PARTICLE_LIFETIME;
+      dummy.position.set(
+        slot.origin.x + slot.velocity.x * elapsed,
+        slot.origin.y + slot.velocity.y * elapsed + 0.5 * GRAVITY * elapsed * elapsed,
+        slot.origin.z + slot.velocity.z * elapsed
+      );
+      dummy.rotation.set(
+        slot.rotation.x + slot.angVel.x * elapsed,
+        slot.rotation.y + slot.angVel.y * elapsed,
+        slot.rotation.z + slot.angVel.z * elapsed
+      );
+      // Fading via scale (not material opacity) because opacity is a single
+      // value shared by the whole InstancedMesh — it can't represent many
+      // independently-aged bursts at once, but each instance's transform can.
+      dummy.scale.setScalar(slot.baseScale * fade);
+    }
     dummy.updateMatrix();
-    p.mesh.setMatrixAt(p.index, dummy.matrix);
+    slot.mesh.setMatrixAt(slot.index, dummy.matrix);
   }
   confettiMesh.instanceMatrix.needsUpdate = true;
   starMesh.instanceMatrix.needsUpdate = true;
 
-  const fade = Math.max(0, 1 - elapsed / CELEBRATION_LIFETIME);
-  confettiMaterial.opacity = fade;
-  starMaterial.opacity = fade;
-  flashLight.intensity = Math.max(0, 8 * (1 - elapsed / 0.35));
-
-  if (elapsed > CELEBRATION_LIFETIME) {
-    active = false;
-    confettiMesh.visible = false;
-    starMesh.visible = false;
+  // Light flash per burst; overlapping bursts combine via max() rather than
+  // one flash stomping another.
+  let flashIntensity = 0;
+  for (let i = recentFlashes.length - 1; i >= 0; i--) {
+    const age = now - recentFlashes[i];
+    if (age > FLASH_DURATION) {
+      recentFlashes.splice(i, 1);
+      continue;
+    }
+    flashIntensity = Math.max(flashIntensity, 8 * (1 - age / FLASH_DURATION));
   }
+  flashLight.intensity = flashIntensity;
 }
 
 function loop() {
@@ -198,4 +234,46 @@ function loop() {
 }
 loop();
 
-window.addEventListener("wheel:winner", trigger);
+// ---------------------------------------------------------------------------
+// Session scheduling: an opening flurry of 2-3 staggered bursts within about
+// a second, then a steady drip of one every 1-2s until the winner card
+// closes.
+// ---------------------------------------------------------------------------
+
+let sessionActive = false;
+let pendingTimeouts = [];
+
+function scheduleNextDrip() {
+  if (!sessionActive) return;
+  const delay = 1000 + Math.random() * 1000;
+  pendingTimeouts.push(
+    setTimeout(() => {
+      spawnBurst();
+      scheduleNextDrip();
+    }, delay)
+  );
+}
+
+function startSession() {
+  pendingTimeouts.forEach(clearTimeout);
+  pendingTimeouts = [];
+  sessionActive = true;
+
+  spawnBurst(); // first explosion, immediately
+  const extraBursts = 1 + Math.floor(Math.random() * 2); // 1 or 2 more, so 2-3 total
+  for (let i = 0; i < extraBursts; i++) {
+    const delay = 250 + Math.random() * 700; // all land within ~1s
+    pendingTimeouts.push(setTimeout(spawnBurst, delay));
+  }
+
+  pendingTimeouts.push(setTimeout(scheduleNextDrip, 1200 + Math.random() * 800));
+}
+
+function stopSession() {
+  sessionActive = false;
+  pendingTimeouts.forEach(clearTimeout);
+  pendingTimeouts = [];
+}
+
+window.addEventListener("wheel:winner", startSession);
+window.addEventListener("wheel:winner-closed", stopSession);
