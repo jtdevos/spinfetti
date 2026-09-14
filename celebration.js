@@ -65,14 +65,25 @@ function createStarGeometry() {
 // start time. Rather than one global animation, every particle carries its
 // own — a fixed-size pool that spawnBurst() claims slots from round-robin,
 // so bursts can overlap freely without needing per-burst mesh objects.
-const CONFETTI_PER_BURST = 45;
-const STAR_PER_BURST = 12;
+const CONFETTI_PER_BURST_MAX = 45;
+const STAR_PER_BURST_MAX = 12;
 const BURST_POOL_HEADROOM = 4; // how many concurrent bursts the pool comfortably covers
-const CONFETTI_COUNT = CONFETTI_PER_BURST * BURST_POOL_HEADROOM;
-const STAR_COUNT = STAR_PER_BURST * BURST_POOL_HEADROOM;
-const PARTICLE_LIFETIME = 2.2; // seconds
-const GRAVITY = -5;
+const CONFETTI_COUNT = CONFETTI_PER_BURST_MAX * BURST_POOL_HEADROOM;
+const STAR_COUNT = STAR_PER_BURST_MAX * BURST_POOL_HEADROOM;
 const FLASH_DURATION = 350; // ms
+
+// Live-tunable from the debug panel. burstSize scales confetti/star counts
+// together (keeping their ~4:1 ratio); the pool above is sized for the max
+// so turning this up never runs out of slots.
+const settings = {
+  burstSize: CONFETTI_PER_BURST_MAX,
+  gravity: -5,
+  lifetime: 2.2, // seconds
+  spread: 1, // multiplier on outward launch speed
+  launchPower: 1, // multiplier on upward launch speed
+  dripInterval: 1.5, // seconds, center of the steady-drip random range
+  flashBrightness: 8,
+};
 
 const confettiGeometry = new THREE.BoxGeometry(0.26, 0.16, 0.02);
 const confettiMaterial = new THREE.MeshStandardMaterial({
@@ -133,17 +144,17 @@ function screenToWorld(clientX, clientY, targetZ) {
 
 function configureSlot(slot, origin, startTime) {
   const angle = Math.random() * Math.PI * 2;
-  const outward = 2.5 + Math.random() * 6;
+  const outward = (2.5 + Math.random() * 6) * settings.spread;
   // Camera-ward bias without a hard coin-flip: taking the max of two uniform
   // samples skews the distribution toward 1 (mean ~0.67 instead of 0.5), so
   // most pieces still lean toward the viewer but every value in between is
   // possible — some head straight at the camera, others drift past or away.
   const cameraBias = Math.max(Math.random(), Math.random());
-  const zVelocity = -2 + cameraBias * 9; // roughly -2 .. 7, skewed positive
+  const zVelocity = (-2 + cameraBias * 9) * settings.launchPower; // roughly -2 .. 7, skewed positive
 
   slot.origin.copy(origin);
   slot.startTime = startTime;
-  slot.velocity.set(Math.cos(angle) * outward, 2 + Math.random() * 5, zVelocity);
+  slot.velocity.set(Math.cos(angle) * outward, (2 + Math.random() * 5) * settings.launchPower, zVelocity);
   slot.angVel.set((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
   slot.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
   slot.baseScale = 0.7 + Math.random() * 0.7;
@@ -164,11 +175,14 @@ function spawnBurst() {
   const origin = screenToWorld(cx, cy, 0);
   const startTime = performance.now();
 
-  for (let i = 0; i < CONFETTI_PER_BURST; i++) {
+  const confettiCount = Math.round(settings.burstSize);
+  const starCount = Math.round(settings.burstSize * (STAR_PER_BURST_MAX / CONFETTI_PER_BURST_MAX));
+
+  for (let i = 0; i < confettiCount; i++) {
     configureSlot(confettiSlots[confettiCursor], origin, startTime);
     confettiCursor = (confettiCursor + 1) % CONFETTI_COUNT;
   }
-  for (let i = 0; i < STAR_PER_BURST; i++) {
+  for (let i = 0; i < starCount; i++) {
     configureSlot(starSlots[starCursor], origin, startTime);
     starCursor = (starCursor + 1) % STAR_COUNT;
   }
@@ -184,15 +198,15 @@ function update() {
 
   for (const slot of allSlots) {
     const elapsed = (now - slot.startTime) / 1000;
-    if (elapsed < 0 || elapsed > PARTICLE_LIFETIME) {
+    if (elapsed < 0 || elapsed > settings.lifetime) {
       dummy.position.set(0, 0, 0);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(0);
     } else {
-      const fade = 1 - elapsed / PARTICLE_LIFETIME;
+      const fade = 1 - elapsed / settings.lifetime;
       dummy.position.set(
         slot.origin.x + slot.velocity.x * elapsed,
-        slot.origin.y + slot.velocity.y * elapsed + 0.5 * GRAVITY * elapsed * elapsed,
+        slot.origin.y + slot.velocity.y * elapsed + 0.5 * settings.gravity * elapsed * elapsed,
         slot.origin.z + slot.velocity.z * elapsed
       );
       dummy.rotation.set(
@@ -220,7 +234,7 @@ function update() {
       recentFlashes.splice(i, 1);
       continue;
     }
-    flashIntensity = Math.max(flashIntensity, 8 * (1 - age / FLASH_DURATION));
+    flashIntensity = Math.max(flashIntensity, settings.flashBrightness * (1 - age / FLASH_DURATION));
   }
   flashLight.intensity = flashIntensity;
 }
@@ -243,7 +257,7 @@ let pendingTimeouts = [];
 
 function scheduleNextDrip() {
   if (!sessionActive) return;
-  const delay = 1000 + Math.random() * 1000;
+  const delay = (settings.dripInterval + (Math.random() - 0.5)) * 1000; // +/-0.5s jitter
   pendingTimeouts.push(
     setTimeout(() => {
       spawnBurst();
@@ -275,3 +289,43 @@ function stopSession() {
 
 window.addEventListener("wheel:winner", startSession);
 window.addEventListener("wheel:winner-closed", stopSession);
+
+// ---------------------------------------------------------------------------
+// Debug controls
+// ---------------------------------------------------------------------------
+
+const DEFAULTS = { ...settings };
+
+const CELEBRATION_SLIDERS = [
+  { id: "cel-burst-size", key: "burstSize" },
+  { id: "cel-gravity", key: "gravity" },
+  { id: "cel-lifetime", key: "lifetime" },
+  { id: "cel-spread", key: "spread" },
+  { id: "cel-launch-power", key: "launchPower" },
+  { id: "cel-drip-interval", key: "dripInterval" },
+  { id: "cel-flash-brightness", key: "flashBrightness" },
+];
+
+const celebrationEls = {};
+for (const { id, key } of CELEBRATION_SLIDERS) {
+  const input = document.getElementById(id);
+  const output = document.getElementById(`out-${id}`);
+  celebrationEls[id] = input;
+  input.addEventListener("input", () => {
+    settings[key] = Number(input.value);
+    output.textContent = input.value;
+  });
+}
+
+document.getElementById("cel-reset").addEventListener("click", () => {
+  for (const { id, key } of CELEBRATION_SLIDERS) {
+    celebrationEls[id].value = DEFAULTS[key];
+    celebrationEls[id].dispatchEvent(new Event("input"));
+  }
+});
+
+// Fires one burst on demand so the particle settings can be previewed
+// without needing to actually spin the wheel to a winner.
+document.getElementById("cel-test-burst").addEventListener("click", () => {
+  spawnBurst();
+});

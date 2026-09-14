@@ -365,6 +365,12 @@ for (let i = 0; i <= RIM_ARC_SEGMENTS; i++) {
     -bevelCenterZ + RIM_BEVEL * Math.sin(phi)
   ));
 }
+// LatheGeometry derives face winding (and thus outward-normal direction)
+// from the order of the profile points, expecting bottom-to-top like its
+// own vase examples. Ours was built top-to-bottom, which flipped every rim
+// face to point inward — the belt was being backface-culled from outside,
+// which is why the rounded side read as flat/clipped instead of bulging.
+rimProfile.reverse();
 const rim = new THREE.Mesh(new THREE.LatheGeometry(rimProfile, 96), rimMaterial);
 rim.rotation.x = Math.PI / 2;
 wheelPivot.add(rim);

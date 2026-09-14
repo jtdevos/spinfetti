@@ -272,6 +272,20 @@ details summary {
   background: #322d40;
 }
 
+.debug-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: #26212f;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.debug-btn:hover {
+  background: #322d40;
+}
+
 .preset-row {
   display: flex;
   gap: 8px;
