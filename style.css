@@ -345,6 +345,15 @@ details summary {
   z-index: 10;
 }
 
+/* backdrop-filter recomputes every frame the overlay is up, blurring the
+   still-animating wheel/background behind it — cheap on most GPUs but a
+   real frame-time cost on weak ones (e.g. a Raspberry Pi's). The dark scrim
+   above already does most of the dimming on its own, so performance mode
+   drops the blur and keeps the scrim. */
+body.performance-mode #winner-overlay {
+  backdrop-filter: none;
+}
+
 #winner-overlay.hidden {
   display: none;
 }

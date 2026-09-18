@@ -131,6 +131,11 @@ renderEntryList();
 // the page rather than trying to patch a live renderer.
 const PERFORMANCE_MODE_KEY = "spinfetti-performance-mode";
 const performanceMode = localStorage.getItem(PERFORMANCE_MODE_KEY) === "true";
+// Also drives a CSS-only saving: see style.css's body.performance-mode rule,
+// which drops the winner overlay's backdrop-filter blur (a real per-frame
+// compositing cost on weak GPUs, since it's continuously re-blurring the
+// still-animating scene behind it).
+document.body.classList.toggle("performance-mode", performanceMode);
 
 const container = document.getElementById("wheel-container");
 

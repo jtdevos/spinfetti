@@ -67,9 +67,8 @@ another module's state.
 
 ### Performance settings (for low-power devices like a Raspberry Pi)
 
-Two independent kinds of perf controls, both persisted to `localStorage` and
-both designed to remove the actual GPU work, not just visually disable an
-effect:
+Several independent perf controls, all persisted to `localStorage` and all
+designed to remove the actual GPU work, not just visually disable an effect:
 
 - **Per-effect enable toggles** — "Enable animated background"
   (`background.js`, key `spinfetti-bg-enabled`) and "Enable screen filters"
@@ -86,7 +85,20 @@ effect:
   context-creation-time flag that can't be changed on a live renderer, so
   toggling this checkbox calls `location.reload()` rather than trying to
   patch renderers in place — don't try to make this toggle live without
-  recreating each renderer's canvas/context.
+  recreating each renderer's canvas/context. It also toggles a
+  `performance-mode` class on `<body>` (set once in `script.js` from the
+  same localStorage read), which `style.css` uses to drop the winner
+  overlay's `backdrop-filter: blur()` — that filter recomputes every frame
+  the overlay is open (it's continuously re-blurring the still-animating
+  scene behind it), which is cheap on most GPUs but a real frame-time cost
+  on weak ones.
+- **Flat particles** (checkbox in the "Celebration effects" panel, key
+  `spinfetti-flat-particles`, `celebration.js`) — switches confetti/stars
+  between flat cutout geometry (`PlaneGeometry`/`ShapeGeometry`, the
+  default) and the original extruded/boxed 3D solids, by reassigning
+  `confettiMesh.geometry`/`starMesh.geometry` live. Both geometry variants
+  are built once up front so toggling is just a reference swap — no
+  renderer work needed, unlike the antialiasing setting above.
 
 ### Wheel geometry and angle conventions (script.js)
 
