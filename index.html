@@ -50,6 +50,10 @@
               <span>Drag <output id="out-drag">2.5</output> rad/s²</span>
               <input type="range" id="dbg-drag" min="1" max="6" step="0.1" value="2.5" />
             </label>
+            <label class="debug-row">
+              <span>Label font size <output id="out-label-font-size">36</output>px</span>
+              <input type="range" id="dbg-label-font-size" min="16" max="60" step="1" value="36" />
+            </label>
             <button id="dbg-reset" type="button">Reset to defaults</button>
           </div>
         </details>
@@ -196,6 +200,22 @@
       <button id="winner-close">Close</button>
     </div>
   </div>
+
+  <div id="version-tag"></div>
+
+  <!--
+    version.js is generated at deploy time (see deploy.sh), sets
+    window.__SPINFETTI_COMMIT__, and is gitignored — it won't exist when
+    just cloning the repo or running the local dev server, so this script
+    tag 404s harmlessly and the tag below falls back to "dev". Loaded as a
+    plain (non-module) script so it runs before the deferred module
+    scripts below, and a missing file can't break anything that depends
+    on it.
+  -->
+  <script src="version.js"></script>
+  <script>
+    document.getElementById("version-tag").textContent = window.__SPINFETTI_COMMIT__ || "dev";
+  </script>
 
   <script type="importmap">
     {

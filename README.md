@@ -49,11 +49,15 @@ dashboard with no build command and `/` as the output directory.
 **Option B — CLI:**
 
 ```bash
-npx wrangler pages deploy .
+./deploy.sh
 ```
 
 A `wrangler.toml` is already set up with the project name and output
-directory, so this should work with no extra flags.
+directory. `deploy.sh` stamps the current short commit hash into
+`version.js` (shown subtly in the bottom-left corner of the page, so you
+can confirm which build is live) before running `wrangler pages deploy .`;
+running `npx wrangler pages deploy .` directly still works, just without
+that version tag.
 
 ## License
 

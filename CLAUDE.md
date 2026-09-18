@@ -26,12 +26,17 @@ Then open `http://localhost:8123`.
 Deploy to Cloudflare Pages:
 
 ```bash
-npx wrangler pages deploy .
+./deploy.sh
 ```
 
-`wrangler.toml` already sets the project name and output dir (`.`), so this
-needs no extra flags. (There is also a dashboard-based deploy option with no
-build command — see README.md.)
+`wrangler.toml` already sets the project name and output dir (`.`).
+`deploy.sh` first regenerates `version.js` (gitignored) with the current
+`git rev-parse --short HEAD`, which stamps the small commit-hash tag in the
+page's bottom-left corner, then runs `npx wrangler pages deploy .` — always
+use the script rather than calling wrangler directly, so the deployed
+version tag stays accurate. (There is also a dashboard-based deploy option
+with no build command — see README.md — though that path doesn't get the
+version tag.)
 
 There is no test suite, linter, or type checker in this repo.
 

@@ -420,6 +420,13 @@ scene.add(pointerGroup);
 // the canvas (y-down pixel space) we use (cx + r*cos(phi), cy - r*sin(phi)).
 // ---------------------------------------------------------------------------
 
+// Live-tunable from the debug panel. This is the size used for 16 or fewer
+// entries; wheels with more slices scale it down (see rebuildWheelTexture)
+// to keep labels from overlapping, same ratio as the old fixed 22/30 sizes.
+const DEFAULT_LABEL_FONT_SIZE = 36;
+const MANY_ENTRIES_FONT_RATIO = 22 / 30;
+let labelFontSize = DEFAULT_LABEL_FONT_SIZE;
+
 function localAngleToCanvasPoint(phi, radius) {
   const cx = TEXTURE_SIZE / 2;
   const cy = TEXTURE_SIZE / 2;
@@ -463,7 +470,8 @@ function rebuildWheelTexture() {
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#ffffff";
-    ctx.font = `600 ${n > 16 ? 22 : 30}px 'Segoe UI', sans-serif`;
+    const fontSize = n > 16 ? Math.round(labelFontSize * MANY_ENTRIES_FONT_RATIO) : labelFontSize;
+    ctx.font = `600 ${fontSize}px 'Segoe UI', sans-serif`;
     ctx.shadowColor = "rgba(0,0,0,0.5)";
     ctx.shadowBlur = 4;
     const label = entries[i].text.length > 22 ? entries[i].text.slice(0, 20) + "…" : entries[i].text;
@@ -591,14 +599,21 @@ function loop(now) {
 // Debug controls
 // ---------------------------------------------------------------------------
 
-const DEFAULTS = { cameraTilt: 6, topSpeed: settings.topSpeed, drag: settings.drag };
+const DEFAULTS = {
+  cameraTilt: 6,
+  topSpeed: settings.topSpeed,
+  drag: settings.drag,
+  labelFontSize: DEFAULT_LABEL_FONT_SIZE,
+};
 
 const dbgCameraTilt = document.getElementById("dbg-camera-tilt");
 const dbgTopSpeed = document.getElementById("dbg-top-speed");
 const dbgDrag = document.getElementById("dbg-drag");
+const dbgLabelFontSize = document.getElementById("dbg-label-font-size");
 const outCameraTilt = document.getElementById("out-camera-tilt");
 const outTopSpeed = document.getElementById("out-top-speed");
 const outDrag = document.getElementById("out-drag");
+const outLabelFontSize = document.getElementById("out-label-font-size");
 const dbgResetBtn = document.getElementById("dbg-reset");
 
 dbgCameraTilt.addEventListener("input", () => {
@@ -617,13 +632,21 @@ dbgDrag.addEventListener("input", () => {
   outDrag.textContent = settings.drag;
 });
 
+dbgLabelFontSize.addEventListener("input", () => {
+  labelFontSize = Number(dbgLabelFontSize.value);
+  outLabelFontSize.textContent = labelFontSize;
+  rebuildWheelTexture();
+});
+
 dbgResetBtn.addEventListener("click", () => {
   dbgCameraTilt.value = DEFAULTS.cameraTilt;
   dbgTopSpeed.value = DEFAULTS.topSpeed;
   dbgDrag.value = DEFAULTS.drag;
+  dbgLabelFontSize.value = DEFAULTS.labelFontSize;
   dbgCameraTilt.dispatchEvent(new Event("input"));
   dbgTopSpeed.dispatchEvent(new Event("input"));
   dbgDrag.dispatchEvent(new Event("input"));
+  dbgLabelFontSize.dispatchEvent(new Event("input"));
 });
 
 // ---------------------------------------------------------------------------
