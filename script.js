@@ -124,6 +124,14 @@ renderEntryList();
 // Three.js scene setup
 // ---------------------------------------------------------------------------
 
+// Antialiasing is a WebGL context-creation-time flag (it can't be toggled
+// on a live renderer), and every module here creates its own renderer/
+// context, so performance mode is read once at load from localStorage and
+// applied at construction time everywhere — toggling the checkbox reloads
+// the page rather than trying to patch a live renderer.
+const PERFORMANCE_MODE_KEY = "spinfetti-performance-mode";
+const performanceMode = localStorage.getItem(PERFORMANCE_MODE_KEY) === "true";
+
 const container = document.getElementById("wheel-container");
 
 const scene = new THREE.Scene();
@@ -143,8 +151,8 @@ function setCameraTilt(degrees) {
 }
 setCameraTilt(6);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ antialias: !performanceMode, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, performanceMode ? 1 : 2));
 container.appendChild(renderer.domElement);
 
 const hemiLight = new THREE.HemisphereLight(0xfff6e0, 0x201830, 1.1);
@@ -611,6 +619,17 @@ dbgResetBtn.addEventListener("click", () => {
   dbgCameraTilt.dispatchEvent(new Event("input"));
   dbgTopSpeed.dispatchEvent(new Event("input"));
   dbgDrag.dispatchEvent(new Event("input"));
+});
+
+// ---------------------------------------------------------------------------
+// Performance mode
+// ---------------------------------------------------------------------------
+
+const perfModeCheckbox = document.getElementById("perf-mode");
+perfModeCheckbox.checked = performanceMode;
+perfModeCheckbox.addEventListener("change", () => {
+  localStorage.setItem(PERFORMANCE_MODE_KEY, String(perfModeCheckbox.checked));
+  window.location.reload();
 });
 
 // ---------------------------------------------------------------------------

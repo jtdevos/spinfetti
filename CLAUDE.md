@@ -65,6 +65,29 @@ another module's state.
   Audio API (no audio asset files). Listens for `wheel:tick`, `wheel:winner`,
   and `celebration:burst`.
 
+### Performance settings (for low-power devices like a Raspberry Pi)
+
+Two independent kinds of perf controls, both persisted to `localStorage` and
+both designed to remove the actual GPU work, not just visually disable an
+effect:
+
+- **Per-effect enable toggles** — "Enable animated background"
+  (`background.js`, key `spinfetti-bg-enabled`) and "Enable screen filters"
+  (`script.js`, key `spinfetti-filters-enabled`). Take effect immediately,
+  no reload: disabling background cancels its `requestAnimationFrame` loop
+  and hides its canvas; disabling filters skips `EffectComposer` and calls
+  `renderer.render(scene, camera)` directly instead, avoiding the extra
+  render-to-texture/shader/output passes.
+- **Performance mode** (checkbox in the "Performance" panel, key
+  `spinfetti-performance-mode`, read by `script.js`/`background.js`/
+  `celebration.js` independently since each owns its own `WebGLRenderer`)
+  — caps pixel ratio at 1 (vs. `min(devicePixelRatio, 2)`) and disables
+  antialiasing on all three renderers. Antialiasing is a WebGL
+  context-creation-time flag that can't be changed on a live renderer, so
+  toggling this checkbox calls `location.reload()` rather than trying to
+  patch renderers in place — don't try to make this toggle live without
+  recreating each renderer's canvas/context.
+
 ### Wheel geometry and angle conventions (script.js)
 
 Worth understanding before touching the wheel: it's a flat "poker chip" —

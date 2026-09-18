@@ -9,9 +9,13 @@ import * as THREE from "three";
 // matching the pattern background.js uses to stay independent of the
 // wheel code.
 
+// Read once at load (see script.js for why): antialiasing can't be toggled
+// on a live renderer, so performance mode is applied at construction time.
+const performanceMode = localStorage.getItem("spinfetti-performance-mode") === "true";
+
 const canvas = document.getElementById("celebration-canvas");
-const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: !performanceMode });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, performanceMode ? 1 : 2));
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);

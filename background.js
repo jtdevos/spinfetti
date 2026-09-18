@@ -5,9 +5,13 @@ import * as THREE from "three";
 // fixed canvas rendered behind everything, driven by its own tiny
 // renderer/scene/shader. It has no opinion about the wheel at all.
 
+// Read once at load (see script.js for why): antialiasing can't be toggled
+// on a live renderer, so performance mode is applied at construction time.
+const performanceMode = localStorage.getItem("spinfetti-performance-mode") === "true";
+
 const canvas = document.getElementById("bg-canvas");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !performanceMode });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, performanceMode ? 1 : 2));
 
 const scene = new THREE.Scene();
 const camera = new THREE.Camera(); // unused by the shader (see vertex shader), kept for renderer.render()'s signature

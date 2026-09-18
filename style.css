@@ -271,6 +271,13 @@ details summary {
   pointer-events: none;
 }
 
+.debug-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 #dbg-reset {
   align-self: flex-start;
   padding: 6px 14px;
