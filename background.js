@@ -125,20 +125,47 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
+let rafId = null;
+
 function loop(t) {
-  requestAnimationFrame(loop);
+  rafId = requestAnimationFrame(loop);
   uniforms.uTime.value = t / 1000;
   renderer.render(scene, camera);
 }
-requestAnimationFrame(loop);
+
+// Fully stops the rAF loop and hides the canvas (rather than just zeroing
+// intensity) so a disabled background costs nothing on low-power hardware —
+// the page's own CSS gradient behind #bg-canvas shows through instead.
+function setEnabled(value) {
+  canvas.style.display = value ? "" : "none";
+  subControls.classList.toggle("disabled", !value);
+  if (value) {
+    if (rafId === null) rafId = requestAnimationFrame(loop);
+  } else if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
 
 // --- Debug controls -------------------------------------------------------
 
+const ENABLED_KEY = "spinfetti-bg-enabled";
+
+const enabledCheckbox = document.getElementById("bg-enabled");
+const subControls = document.getElementById("bg-sub-controls");
 const modeSelect = document.getElementById("bg-mode");
 const speedSlider = document.getElementById("bg-speed");
 const intensitySlider = document.getElementById("bg-intensity");
 const outSpeed = document.getElementById("out-bg-speed");
 const outIntensity = document.getElementById("out-bg-intensity");
+
+enabledCheckbox.checked = localStorage.getItem(ENABLED_KEY) !== "false";
+setEnabled(enabledCheckbox.checked);
+
+enabledCheckbox.addEventListener("change", () => {
+  localStorage.setItem(ENABLED_KEY, String(enabledCheckbox.checked));
+  setEnabled(enabledCheckbox.checked);
+});
 
 modeSelect.addEventListener("change", () => {
   uniforms.uMode.value = Number(modeSelect.value);

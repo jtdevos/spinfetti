@@ -558,10 +558,20 @@ function announceWinner() {
 spinBtn.addEventListener("click", spin);
 spinBtn.disabled = entries.length < 2;
 
+// When filters are disabled we skip the composer entirely (render straight
+// to the canvas) rather than just zeroing the filter uniforms — that avoids
+// the extra render-to-texture pass, the filter shader, and the output pass
+// every frame, which is the more expensive path on low-power GPUs.
+let filtersEnabled = true;
+
 function loop(now) {
   requestAnimationFrame(loop);
-  filterUniforms.uTime.value = (now ?? performance.now()) / 1000;
-  composer.render();
+  if (filtersEnabled) {
+    filterUniforms.uTime.value = (now ?? performance.now()) / 1000;
+    composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -629,6 +639,23 @@ for (const { id, uniform, offLabel } of FILTER_SLIDERS) {
     clearActivePreset();
   });
 }
+
+const FILTERS_ENABLED_KEY = "spinfetti-filters-enabled";
+const fltEnabledCheckbox = document.getElementById("flt-enabled");
+const fltSubControls = document.getElementById("flt-sub-controls");
+
+function setFiltersEnabled(value) {
+  filtersEnabled = value;
+  fltSubControls.classList.toggle("disabled", !value);
+}
+
+fltEnabledCheckbox.checked = localStorage.getItem(FILTERS_ENABLED_KEY) !== "false";
+setFiltersEnabled(fltEnabledCheckbox.checked);
+
+fltEnabledCheckbox.addEventListener("change", () => {
+  localStorage.setItem(FILTERS_ENABLED_KEY, String(fltEnabledCheckbox.checked));
+  setFiltersEnabled(fltEnabledCheckbox.checked);
+});
 
 const presetButtons = document.querySelectorAll(".preset-btn");
 const FILTER_PRESETS = {

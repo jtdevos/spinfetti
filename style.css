@@ -257,6 +257,20 @@ details summary {
   font-size: 0.9rem;
 }
 
+.toggle-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.toggle-row input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.debug-controls.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 #dbg-reset {
   align-self: flex-start;
   padding: 6px 14px;
