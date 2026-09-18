@@ -45,6 +45,13 @@ resize();
 // Geometry / materials
 // ---------------------------------------------------------------------------
 
+// A flat cutout (ShapeGeometry), not an extruded solid — it's still a real
+// 3D object tumbling through the burst via the same per-instance rotation
+// as everything else, but with no back cap or side walls to shade, which
+// matters a lot at these instance counts on low-power GPUs (a Raspberry
+// Pi). It also reads more like real foil confetti: a thin card that
+// glints edge-on and nearly disappears face-on, rather than a solid gem
+// with constant thickness.
 function createStarGeometry() {
   const shape = new THREE.Shape();
   const points = 5;
@@ -59,9 +66,7 @@ function createStarGeometry() {
     else shape.lineTo(x, y);
   }
   shape.closePath();
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false });
-  geometry.center();
-  return geometry;
+  return new THREE.ShapeGeometry(shape);
 }
 
 // Multiple bursts can be alive at once (a staggered opening flurry, plus a
@@ -89,7 +94,11 @@ const settings = {
   flashBrightness: 8,
 };
 
-const confettiGeometry = new THREE.BoxGeometry(0.26, 0.16, 0.02);
+// A flat plane rather than a thin box — the 0.02 depth was imperceptible
+// but still cost a full 6-face box (24 verts/12 tris) per instance instead
+// of a plane's 4 verts/2 tris, and confetti is by far the larger of the two
+// particle pools.
+const confettiGeometry = new THREE.PlaneGeometry(0.26, 0.16);
 const confettiMaterial = new THREE.MeshStandardMaterial({
   // Per-instance color comes from InstancedMesh.setColorAt, not per-vertex
   // geometry colors — these geometries have no `color` vertex attribute, so
