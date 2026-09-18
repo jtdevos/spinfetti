@@ -45,14 +45,7 @@ resize();
 // Geometry / materials
 // ---------------------------------------------------------------------------
 
-// A flat cutout (ShapeGeometry), not an extruded solid — it's still a real
-// 3D object tumbling through the burst via the same per-instance rotation
-// as everything else, but with no back cap or side walls to shade, which
-// matters a lot at these instance counts on low-power GPUs (a Raspberry
-// Pi). It also reads more like real foil confetti: a thin card that
-// glints edge-on and nearly disappears face-on, rather than a solid gem
-// with constant thickness.
-function createStarGeometry() {
+function buildStarShape() {
   const shape = new THREE.Shape();
   const points = 5;
   const outerR = 0.22;
@@ -66,8 +59,25 @@ function createStarGeometry() {
     else shape.lineTo(x, y);
   }
   shape.closePath();
-  return new THREE.ShapeGeometry(shape);
+  return shape;
 }
+
+// Two geometry variants per particle type, toggleable live from the debug
+// panel ("Flat particles"): a flat cutout (ShapeGeometry/PlaneGeometry) with
+// no back cap or side walls to shade — much cheaper at these instance
+// counts on low-power GPUs like a Raspberry Pi's, and arguably more
+// authentic (real foil confetti is a thin card that glints edge-on and
+// nearly disappears face-on) — versus the original extruded/boxed solid
+// with genuine thickness. Both tumble identically; only the geometry each
+// InstancedMesh points at changes, swapped via `mesh.geometry =` at toggle
+// time (no renderer/context work needed, unlike the antialiasing setting).
+const starShape = buildStarShape();
+const STAR_GEOMETRY_FLAT = new THREE.ShapeGeometry(starShape);
+const STAR_GEOMETRY_3D = new THREE.ExtrudeGeometry(starShape, { depth: 0.06, bevelEnabled: false });
+STAR_GEOMETRY_3D.center();
+
+const CONFETTI_GEOMETRY_FLAT = new THREE.PlaneGeometry(0.26, 0.16);
+const CONFETTI_GEOMETRY_3D = new THREE.BoxGeometry(0.26, 0.16, 0.02);
 
 // Multiple bursts can be alive at once (a staggered opening flurry, plus a
 // steady drip while the winner card is open), each with its own origin and
@@ -94,11 +104,9 @@ const settings = {
   flashBrightness: 8,
 };
 
-// A flat plane rather than a thin box — the 0.02 depth was imperceptible
-// but still cost a full 6-face box (24 verts/12 tris) per instance instead
-// of a plane's 4 verts/2 tris, and confetti is by far the larger of the two
-// particle pools.
-const confettiGeometry = new THREE.PlaneGeometry(0.26, 0.16);
+const FLAT_PARTICLES_KEY = "spinfetti-flat-particles";
+let flatParticles = localStorage.getItem(FLAT_PARTICLES_KEY) !== "false";
+
 const confettiMaterial = new THREE.MeshStandardMaterial({
   // Per-instance color comes from InstancedMesh.setColorAt, not per-vertex
   // geometry colors — these geometries have no `color` vertex attribute, so
@@ -109,16 +117,23 @@ const confettiMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.1,
   side: THREE.DoubleSide,
 });
-const confettiMesh = new THREE.InstancedMesh(confettiGeometry, confettiMaterial, CONFETTI_COUNT);
+const confettiMesh = new THREE.InstancedMesh(
+  flatParticles ? CONFETTI_GEOMETRY_FLAT : CONFETTI_GEOMETRY_3D,
+  confettiMaterial,
+  CONFETTI_COUNT
+);
 scene.add(confettiMesh);
 
-const starGeometry = createStarGeometry();
 const starMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.25,
   metalness: 0.7,
   side: THREE.DoubleSide,
 });
-const starMesh = new THREE.InstancedMesh(starGeometry, starMaterial, STAR_COUNT);
+const starMesh = new THREE.InstancedMesh(
+  flatParticles ? STAR_GEOMETRY_FLAT : STAR_GEOMETRY_3D,
+  starMaterial,
+  STAR_COUNT
+);
 scene.add(starMesh);
 
 const dummy = new THREE.Object3D();
@@ -306,6 +321,15 @@ window.addEventListener("wheel:winner-closed", stopSession);
 // ---------------------------------------------------------------------------
 // Debug controls
 // ---------------------------------------------------------------------------
+
+const flatParticlesCheckbox = document.getElementById("cel-flat-particles");
+flatParticlesCheckbox.checked = flatParticles;
+flatParticlesCheckbox.addEventListener("change", () => {
+  flatParticles = flatParticlesCheckbox.checked;
+  localStorage.setItem(FLAT_PARTICLES_KEY, String(flatParticles));
+  confettiMesh.geometry = flatParticles ? CONFETTI_GEOMETRY_FLAT : CONFETTI_GEOMETRY_3D;
+  starMesh.geometry = flatParticles ? STAR_GEOMETRY_FLAT : STAR_GEOMETRY_3D;
+});
 
 const DEFAULTS = { ...settings };
 
